@@ -1,5 +1,6 @@
 package com.academia.pokemon.controller;
 
+import com.academia.pokemon.dto.EvolutionChainDto;
 import com.academia.pokemon.dto.PokemonDto;
 import com.academia.pokemon.dto.TypeDominanceDto;
 import com.academia.pokemon.service.PokemonService;
@@ -29,5 +30,10 @@ public class PokemonController {
     @GetMapping("/type-dominance/{type}")
     public ResponseEntity<TypeDominanceDto> getTypeDominance(@PathVariable String type) {
         return ResponseEntity.ok(pokemonService.getTypeDominance(type));
+    }
+
+    @GetMapping("/evolution-chain/{id}")
+    public ResponseEntity<EvolutionChainDto> getEvolutionChain(@PathVariable Integer id) {
+        return ResponseEntity.ok(pokemonService.getEvolutionChain(id));
     }
 }

@@ -1,12 +1,16 @@
 package com.academia.pokemon.service;
 
+import com.academia.pokemon.dto.EvolutionChainDto;
 import com.academia.pokemon.dto.PokemonDto;
 import com.academia.pokemon.dto.TypeDominanceDto;
+import com.academia.pokemon.model.PokeApiEvolutionChainResponse;
 import com.academia.pokemon.model.PokeApiListResponse;
 import com.academia.pokemon.model.PokeApiPokemonDetail;
+import com.academia.pokemon.model.PokeApiSpeciesResponse;
 import com.academia.pokemon.model.PokeApiTypeResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import java.util.ArrayList;
 
 import java.util.List;
 import java.util.Objects;
@@ -122,6 +126,60 @@ public class PokemonService {
             return id >= 1 && id <= 151;
         } catch (Exception e) {
             return false;
+        }
+    }
+
+    public EvolutionChainDto getEvolutionChain(Integer id) {
+        String speciesUrl = POKEAPI_BASE_URL + "/pokemon-species/" + id;
+        PokeApiSpeciesResponse speciesResponse;
+        try {
+            speciesResponse = restTemplate.getForObject(speciesUrl, PokeApiSpeciesResponse.class);
+        } catch (Exception e) {
+            throw new RuntimeException("Pokemon species not found for id: " + id, e);
+        }
+
+        if (speciesResponse == null || speciesResponse.getEvolutionChain() == null) {
+            throw new RuntimeException("Evolution chain not found for id: " + id);
+        }
+
+        PokeApiEvolutionChainResponse chainResponse = restTemplate.getForObject(
+                speciesResponse.getEvolutionChain().getUrl(), PokeApiEvolutionChainResponse.class);
+
+        if (chainResponse == null || chainResponse.getChain() == null) {
+            throw new RuntimeException("Evolution chain details not found");
+        }
+
+        List<EvolutionChainDto.EvolutionStepDto> steps = new ArrayList<>();
+        parseEvolutionChain(chainResponse.getChain(), steps, 1);
+
+        String baseName = chainResponse.getChain().getSpecies() != null ? 
+                chainResponse.getChain().getSpecies().getName() : "";
+
+        return EvolutionChainDto.builder()
+                .pokemonBase(baseName)
+                .cadena(steps)
+                .build();
+    }
+
+    private void parseEvolutionChain(PokeApiEvolutionChainResponse.ChainLink link, 
+                                     List<EvolutionChainDto.EvolutionStepDto> steps, 
+                                     int order) {
+        if (link == null || link.getSpecies() == null) return;
+
+        Integer minLevel = null;
+        if (link.getEvolutionDetails() != null && !link.getEvolutionDetails().isEmpty()) {
+            minLevel = link.getEvolutionDetails().get(0).getMinLevel();
+        }
+
+        steps.add(EvolutionChainDto.EvolutionStepDto.builder()
+                .nombre(link.getSpecies().getName())
+                .orden(order)
+                .minLevel(minLevel)
+                .build());
+
+        if (link.getEvolvesTo() != null && !link.getEvolvesTo().isEmpty()) {
+            // we assume a linear evolution chain for the requirement as example shows linear chains
+            parseEvolutionChain(link.getEvolvesTo().get(0), steps, order + 1);
         }
     }
 }
