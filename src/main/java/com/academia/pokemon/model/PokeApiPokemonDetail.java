@@ -8,6 +8,8 @@ import java.util.List;
 public class PokeApiPokemonDetail {
     private Integer id;
     private String name;
+    @JsonProperty("base_experience")
+    private Integer baseExperience;
     private List<StatEntry> stats;
     private List<TypeEntry> types;
 
