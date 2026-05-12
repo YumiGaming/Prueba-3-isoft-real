@@ -2,14 +2,20 @@ package com.academia.pokemon.service;
 
 import com.academia.pokemon.dto.EvolutionChainDto;
 import com.academia.pokemon.dto.PokemonDto;
+import com.academia.pokemon.dto.RegionPokemonDto;
 import com.academia.pokemon.dto.TypeDominanceDto;
 import com.academia.pokemon.model.PokeApiEvolutionChainResponse;
 import com.academia.pokemon.model.PokeApiListResponse;
 import com.academia.pokemon.model.PokeApiPokemonDetail;
+import com.academia.pokemon.model.PokeApiRegionResponse;
+import com.academia.pokemon.model.PokeApiGenerationResponse;
 import com.academia.pokemon.model.PokeApiSpeciesResponse;
 import com.academia.pokemon.model.PokeApiTypeResponse;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.server.ResponseStatusException;
 import java.util.ArrayList;
 
 import java.util.List;
@@ -181,5 +187,62 @@ public class PokemonService {
             // we assume a linear evolution chain for the requirement as example shows linear chains
             parseEvolutionChain(link.getEvolvesTo().get(0), steps, order + 1);
         }
+    }
+
+    public List<RegionPokemonDto> getPokemonByRegion(String regionName) {
+        String regionUrl = POKEAPI_BASE_URL + "/region/" + regionName.toLowerCase();
+        PokeApiRegionResponse regionResponse;
+        try {
+            regionResponse = restTemplate.getForObject(regionUrl, PokeApiRegionResponse.class);
+        } catch (HttpClientErrorException.NotFound e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, 
+                "Region '" + regionName + "' no encontrada. Regiones válidas: kanto, johto, hoenn, sinnoh, unova, kalos, alola, galar");
+        } catch (Exception e) {
+            throw new RuntimeException("Error fetching region", e);
+        }
+
+        if (regionResponse == null || regionResponse.getMainGeneration() == null) {
+            return List.of();
+        }
+
+        PokeApiGenerationResponse genResponse = restTemplate.getForObject(
+                regionResponse.getMainGeneration().getUrl(), PokeApiGenerationResponse.class);
+
+        if (genResponse == null || genResponse.getPokemonSpecies() == null) {
+            return List.of();
+        }
+
+        Integer genId = genResponse.getId();
+
+        return genResponse.getPokemonSpecies().parallelStream()
+                .map(species -> {
+                    String speciesUrl = species.getUrl();
+                    String[] parts = speciesUrl.split("/");
+                    int pId = Integer.parseInt(parts[parts.length - 1]);
+                    return pId;
+                })
+                .map(pId -> {
+                    try {
+                        return restTemplate.getForObject(POKEAPI_BASE_URL + "/pokemon/" + pId, PokeApiPokemonDetail.class);
+                    } catch (Exception e) {
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
+                .map(detail -> {
+                    List<String> types = detail.getTypes() != null ?
+                            detail.getTypes().stream()
+                                    .map(t -> t.getType().getName())
+                                    .collect(Collectors.toList()) : List.of();
+
+                    return RegionPokemonDto.builder()
+                            .id(detail.getId())
+                            .nombre(detail.getName())
+                            .tipos(types)
+                            .generacion(genId)
+                            .build();
+                })
+                .sorted((p1, p2) -> p1.getId().compareTo(p2.getId()))
+                .collect(Collectors.toList());
     }
 }

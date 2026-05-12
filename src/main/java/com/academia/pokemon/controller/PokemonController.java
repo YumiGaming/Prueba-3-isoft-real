@@ -2,6 +2,7 @@ package com.academia.pokemon.controller;
 
 import com.academia.pokemon.dto.EvolutionChainDto;
 import com.academia.pokemon.dto.PokemonDto;
+import com.academia.pokemon.dto.RegionPokemonDto;
 import com.academia.pokemon.dto.TypeDominanceDto;
 import com.academia.pokemon.service.PokemonService;
 import org.springframework.http.ResponseEntity;
@@ -35,5 +36,10 @@ public class PokemonController {
     @GetMapping("/evolution-chain/{id}")
     public ResponseEntity<EvolutionChainDto> getEvolutionChain(@PathVariable Integer id) {
         return ResponseEntity.ok(pokemonService.getEvolutionChain(id));
+    }
+
+    @GetMapping("/region/{region_name}")
+    public ResponseEntity<List<RegionPokemonDto>> getPokemonByRegion(@PathVariable("region_name") String regionName) {
+        return ResponseEntity.ok(pokemonService.getPokemonByRegion(regionName));
     }
 }
