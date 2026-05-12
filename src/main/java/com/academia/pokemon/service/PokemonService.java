@@ -3,6 +3,7 @@ package com.academia.pokemon.service;
 import com.academia.pokemon.dto.EvolutionChainDto;
 import com.academia.pokemon.dto.PokemonDto;
 import com.academia.pokemon.dto.RegionPokemonDto;
+import com.academia.pokemon.dto.StrongestPokemonDto;
 import com.academia.pokemon.dto.TypeDominanceDto;
 import com.academia.pokemon.model.PokeApiEvolutionChainResponse;
 import com.academia.pokemon.model.PokeApiListResponse;
@@ -244,5 +245,79 @@ public class PokemonService {
                 })
                 .sorted((p1, p2) -> p1.getId().compareTo(p2.getId()))
                 .collect(Collectors.toList());
+    }
+
+    public StrongestPokemonDto getStrongestPokemon(Integer generation) {
+        if (generation < 1 || generation > 8) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, 
+                "Generación '" + generation + "' no encontrada. Generaciones válidas: 1, 2, 3, 4, 5, 6, 7, 8");
+        }
+
+        String genUrl = POKEAPI_BASE_URL + "/generation/" + generation;
+        PokeApiGenerationResponse genResponse;
+        try {
+            genResponse = restTemplate.getForObject(genUrl, PokeApiGenerationResponse.class);
+        } catch (HttpClientErrorException.NotFound e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, 
+                "Generación '" + generation + "' no encontrada. Generaciones válidas: 1, 2, 3, 4, 5, 6, 7, 8");
+        } catch (Exception e) {
+            throw new RuntimeException("Error fetching generation", e);
+        }
+
+        if (genResponse == null || genResponse.getPokemonSpecies() == null) {
+            throw new RuntimeException("Generation data not found");
+        }
+
+        PokeApiPokemonDetail strongest = genResponse.getPokemonSpecies().parallelStream()
+                .map(species -> {
+                    String[] parts = species.getUrl().split("/");
+                    return Integer.parseInt(parts[parts.length - 1]);
+                })
+                .map(pId -> {
+                    try {
+                        return restTemplate.getForObject(POKEAPI_BASE_URL + "/pokemon/" + pId, PokeApiPokemonDetail.class);
+                    } catch (Exception e) {
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
+                .max((p1, p2) -> Integer.compare(getTotalStats(p1), getTotalStats(p2)))
+                .orElse(null);
+
+        if (strongest == null) {
+            throw new RuntimeException("No pokemon found in generation");
+        }
+
+        List<String> types = strongest.getTypes() != null ?
+                strongest.getTypes().stream().map(t -> t.getType().getName()).collect(Collectors.toList()) : List.of();
+
+        StrongestPokemonDto.StatsDto statsDto = StrongestPokemonDto.StatsDto.builder()
+                .hp(getStat(strongest, "hp"))
+                .attack(getStat(strongest, "attack"))
+                .defense(getStat(strongest, "defense"))
+                .specialAttack(getStat(strongest, "special-attack"))
+                .specialDefense(getStat(strongest, "special-defense"))
+                .speed(getStat(strongest, "speed"))
+                .build();
+
+        StrongestPokemonDto.PokemonDetailDto detailDto = StrongestPokemonDto.PokemonDetailDto.builder()
+                .id(strongest.getId())
+                .nombre(strongest.getName())
+                .totalBaseStats(getTotalStats(strongest))
+                .stats(statsDto)
+                .tipos(types)
+                .build();
+
+        return StrongestPokemonDto.builder()
+                .generacion(generation)
+                .pokemon(detailDto)
+                .build();
+    }
+
+    private int getTotalStats(PokeApiPokemonDetail detail) {
+        if (detail.getStats() == null) return 0;
+        return detail.getStats().stream()
+                .mapToInt(PokeApiPokemonDetail.StatEntry::getBaseStat)
+                .sum();
     }
 }

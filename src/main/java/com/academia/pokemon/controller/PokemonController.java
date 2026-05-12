@@ -3,6 +3,7 @@ package com.academia.pokemon.controller;
 import com.academia.pokemon.dto.EvolutionChainDto;
 import com.academia.pokemon.dto.PokemonDto;
 import com.academia.pokemon.dto.RegionPokemonDto;
+import com.academia.pokemon.dto.StrongestPokemonDto;
 import com.academia.pokemon.dto.TypeDominanceDto;
 import com.academia.pokemon.service.PokemonService;
 import org.springframework.http.ResponseEntity;
@@ -41,5 +42,10 @@ public class PokemonController {
     @GetMapping("/region/{region_name}")
     public ResponseEntity<List<RegionPokemonDto>> getPokemonByRegion(@PathVariable("region_name") String regionName) {
         return ResponseEntity.ok(pokemonService.getPokemonByRegion(regionName));
+    }
+
+    @GetMapping("/strongest/{generation}")
+    public ResponseEntity<StrongestPokemonDto> getStrongestPokemon(@PathVariable Integer generation) {
+        return ResponseEntity.ok(pokemonService.getStrongestPokemon(generation));
     }
 }
